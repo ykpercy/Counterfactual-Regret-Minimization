@@ -200,36 +200,4 @@ class LiarDieTrainer:
         """LiarDieTrainer main method"""
         trainer = LiarDieTrainer(sides=6)
         trainer.train(1000000)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        
