@@ -6,8 +6,6 @@ class LiarDieTrainer:
     DOUBT = 0
     ACCEPT = 1
     # NUM_ACTIONS = 2
-    # rng = np.random.default_rng(12345)
-    # rintger = rng.integers(low=0, high=self.sides, size=3)
 
     def __init__(self, sides):
         self.sides = sides
@@ -15,26 +13,27 @@ class LiarDieTrainer:
         self.claimNodes = np.zeros((self.sides + 1, self.sides + 1), dtype=float)
 
     def random_int(self):
-        rng = np.random.default_rng(12345)
-        randomint = rng.integers(low=0, high=self.sides, size=1)
-        return randomint
+        rng = np.random.default_rng()
+        random_int = rng.integers(low=0, high=self.sides, size=1)
+        return random_int[0]
 
     class Node:
         """Liar Die player decision node"""
-        def __init__(self, pPlayer, pOpponent):
+        def __init__(self, u):
             """Liar Die node definitions. """
             # self.NUM_ACTIONS = LiarDieTrainer.NUM_ACTIONS
             self.regretSum = np.zeros(1, dtype=float)
             self.strategy = np.zeros(1, dtype=float)
             self.strategySum = np.zeros(1, dtype=float)
-            self.pPlayer = pPlayer
-            self.pOpponent = pOpponent
+            self.u = u  # utility value
+            self.pPlayer = 0  # a sum of probabilities
+            self.pOpponent = 0  # a sum of probabilities
 
-        def Node(self, numActions):
+        def Node(self, numActions):  # Node constructor
             """Liar Die node constructor"""
-            self.regretSum = [numActions]
-            self.strategy = [numActions]
-            self.strategySum = [numActions]
+            self.regretSum = np.zeros(numActions, dtype=float)
+            self.strategy = np.zeros(numActions, dtype=float)
+            self.strategySum = np.zeros(numActions, dtype=float)
 
         def getStrategy(self):
             """
@@ -79,36 +78,37 @@ class LiarDieTrainer:
         self.sides = sides
         # responseNodes = Node[sides][sides + 1]  # Node need to be replaced by python data structure
         responseNodes = np.zeros((self.sides, self.sides + 1), dtype=float)
-        for myClaim in range(self.sides+1):
-            for oppClaim in range(1, self.sides+1):
+        for myClaim in range(self.sides + 1):
+            for oppClaim in range(myClaim + 1, self.sides + 1):
                 if oppClaim == 0 or oppClaim == self.sides:
-                    responseNodes[myClaim][oppClaim] = 1
+                    responseNodes[myClaim][oppClaim] = self.Node(1)
                 else:
-                    responseNodes[myClaim][oppClaim] = 2
+                    responseNodes[myClaim][oppClaim] = self.Node(2)
 
         # claimNodes = Node[sides][sides + 1]  # Node need to be replaced by python data structure
         claimNodes = np.zeros((self.sides, self.sides + 1), dtype=float)
         for oppClaim in range(self.sides):
-            for roll in range(1, self.sides+1):
-                claimNodes[oppClaim][roll] = Node(sides - oppClaim)  # Node need to be replaced by python data structure
+            for roll in range(1, self.sides + 1):
+                claimNodes[oppClaim][roll] = self.Node(self.sides - oppClaim)
 
     def train(self, iterations):
+        """Train with FSICFR"""
         regret = np.zeros(self.sides, dtype=float)
-        rollAfterAcceptingClaim = np.zeros(self.sides, dtype=float)
+        rollAfterAcceptingClaim = np.zeros(self.sides, dtype=int)
         for _ in range(iterations):
             """Initialize rolls and starting probabilities"""
             for i in range(len(rollAfterAcceptingClaim)):
-                rollAfterAcceptingClaim[i] = self.random_int().nextInt(self.sides) + 1  # node to be replaced
+                rollAfterAcceptingClaim[i] = self.random_int() + 1
             self.claimNodes[0][rollAfterAcceptingClaim[0]].pPlayer = 1
             self.claimNodes[0][rollAfterAcceptingClaim[0]].pOpponent = 1
 
             """Accumulate realization weights forward"""
-            for oppClaim in range(self.sides+1):
+            for oppClaim in range(self.sides + 1):
                 """Visit response nodes forward"""
                 if oppClaim > 0:
                     for myClaim in range(oppClaim):
                         node = self.responseNodes[myClaim][oppClaim]
-                        actionProb = [node.getStrategy()]
+                        actionProb = node.getStrategy()
                         if oppClaim < self.sides:
                             nextNode = self.claimNodes[oppClaim][rollAfterAcceptingClaim[oppClaim]]
                             nextNode.pPlayer += actionProb[1] * node.pPlayer
@@ -117,8 +117,8 @@ class LiarDieTrainer:
                 """Visit claim nodes forward"""
                 if oppClaim < self.sides:
                     node = self.claimNodes[oppClaim][rollAfterAcceptingClaim[oppClaim]]
-                    actionProb = [node.getStrategy()]
-                    for myClaim in range(1, self.sides+1):
+                    actionProb = node.getStrategy()
+                    for myClaim in range(oppClaim + 1, self.sides + 1):
                         nextClaimProb = actionProb[myClaim - oppClaim - 1]
                         if nextClaimProb > 0:
                             nextNode = self.responseNodes[oppClaim][myClaim]
@@ -130,9 +130,9 @@ class LiarDieTrainer:
                 """Visit claim nodes backward"""
                 if oppClaim < self.sides:
                     node = self.claimNodes[oppClaim][rollAfterAcceptingClaim[oppClaim]]
-                    actionProb = [node.getStrategy()]
+                    actionProb = node.getStrategy()
                     node.u = 0.0
-                    for myClaim in range(oppClaim+1, self.sides+1):
+                    for myClaim in range(oppClaim + 1, self.sides + 1):
                         actionIndex = myClaim - oppClaim - 1
                         nextNode = self.responseNodes[oppClaim][myClaim]
                         childUtil = - nextNode.u
@@ -149,7 +149,7 @@ class LiarDieTrainer:
                 if oppClaim > 0:
                     for myClaim in range(oppClaim):
                         node = self.responseNodes[myClaim][oppClaim]
-                        actionProb = [node.getStrategy()]
+                        actionProb = node.getStrategy()
                         node.u = 0.0
                         doubtUtil = 1 if oppClaim > rollAfterAcceptingClaim[myClaim] else -1
                         regret[LiarDieTrainer.DOUBT] = doubtUtil
@@ -179,25 +179,26 @@ class LiarDieTrainer:
                                 node.strategySum[a] = 0
 
         """Print resulting strategy"""
-        for initialRoll in range(1, self.sides+1):
-            print(f"Initial claim policy with roll {initialRoll}")
+        for initialRoll in range(1, self.sides + 1):
+            print(f"Initial claim policy with roll: {initialRoll}")
             for prob in self.claimNodes[0][initialRoll].getAverageStrategy():
-                print(f"{prob}\n")
+                print(f"{prob:.{4}}")
 
         print(f"\nOld Claim\tNew Claim\tAction Probabilities")
 
-        for myClaim in range(self.sides+1):
-            for oppClaim in range(myClaim+1, self.sides+1):
+        for myClaim in range(self.sides + 1):
+            for oppClaim in range(myClaim + 1, self.sides + 1):
                 print(f"\t{myClaim}\t{oppClaim}\t{''.join(self.responseNodes[myClaim][oppClaim].getAverageStrategy())}")
 
         print(f"\nOld Claim\tRoll\tAction Probabilities")
 
         for oppClaim in range(self.sides):
-            for roll in range(1, self.sides+1):
+            for roll in range(1, self.sides + 1):
                 print(f"{oppClaim}\t{roll}\t{''.join(self.claimNodes[oppClaim][roll].getAverageStrategy())}")
 
-    def main(self, *args):
+    @staticmethod
+    def main():
         """LiarDieTrainer main method"""
-        trainer = LiarDieTrainer(sides=6)
+        trainer = LiarDieTrainer(6)
         trainer.train(1000000)
         
