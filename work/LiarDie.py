@@ -5,6 +5,7 @@ class LiarDieTrainer:
     """Liar Die definitions"""
     DOUBT = 0
     ACCEPT = 1
+
     # NUM_ACTIONS = 2
 
     def __init__(self, sides):
@@ -19,6 +20,7 @@ class LiarDieTrainer:
 
     class Node:
         """Liar Die player decision node"""
+
         def __init__(self, u):
             """Liar Die node definitions. """
             # self.NUM_ACTIONS = LiarDieTrainer.NUM_ACTIONS
@@ -201,4 +203,7 @@ class LiarDieTrainer:
         """LiarDieTrainer main method"""
         trainer = LiarDieTrainer(6)
         trainer.train(1000000)
-        
+
+
+if __name__ == "__main__":
+    LiarDieTrainer.main()
